@@ -1,0 +1,173 @@
+# Reproducible Research: Peer Assessment 1
+
+
+
+
+## Loading and preprocessing the data
+
+I assume that the data is fetched, and located as *~/Coursera/DataSciences/5ReproducibleResearch/Assignment1/RepData_PeerAssessment1/activity.csv*.  
+It can be downloaded at this link: [Dataset [52k]] (https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip)  
+  
+I read data into R as following:
+
+```r
+setwd("~/Coursera/DataSciences/5ReproducibleResearch/Assignment1/RepData_PeerAssessment1/")
+activity <- read.csv("activity.csv", header = TRUE, sep = ",", na.strings = "NA", 
+    colClasses = c("integer", "character", "integer"))
+```
+
+
+
+### Transform data in R:
+I first convert the date vector from a stringvector to date.  
+After this, I create a new column, *isWeekend*, containing TRUE/FALSE, depending if the particular day is a weekend or not. This is used later in the assignment 
+
+
+```r
+activity$date = as.Date(activity$date, "%Y-%m-%d")
+
+activity$isWeekend <- ifelse((weekdays(activity$date) == "Sunday" | weekdays(activity$date) == 
+    "Saturday"), TRUE, FALSE)
+```
+
+
+## What is mean total number of steps taken per day?
+
+I first calculate the mean and median:
+
+```r
+# Aggregate pr. day:
+stepsSum <- aggregate(steps ~ date, activity, sum)
+
+# Calculate mean and Median
+stepsSumMean <- mean(stepsSum$steps, na.rm = T)
+stepsSumMedian <- median(stepsSum$steps, na.rm = T)
+```
+
+
+This shows that the activities data has a **mean** of **10766.1887** and a **median** of **10765**  
+  
+Next step is to plot a histogram:  
+Included in this histogram are to vertical lines; yellow for the median and green for the mean. Notice however, that since these values are near identical, only one line is noticeable.
+
+```r
+hist(stepsSum$steps, main = "Total number of steps taken each day", xlab = "Steps Per Day", 
+    breaks = 10)
+abline(v = stepsSumMean, col = "green", lwd = 1)
+abline(v = stepsSumMedian, col = "yellow", lwd = 1)
+```
+
+![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5.png) 
+
+
+## What is the average daily activity pattern?
+
+
+
+```r
+# Load package plyr
+library(plyr)
+# Aggregate
+activityAggr <- ddply(activity, .(interval), summarize, steps = mean(steps, 
+    na.rm = T))
+# Plot
+with(activityAggr, plot(interval, steps, type = "l"))
+```
+
+![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6.png) 
+
+
+
+
+```r
+maxInterval <- activityAggr[which.max(activityAggr$steps), ]$interval
+```
+
+
+The 5-minutes interval which contains the highest amount of steps is **835** (Eg. at 8:35 in the morning)
+
+### Number of missing values
+Firstly, I count the amount of missing values in steps:
+
+
+```r
+sum(is.na(activity$steps))
+```
+
+```
+## [1] 2304
+```
+
+
+## Imputing missing values
+I choose to fill in the NA's using an average for that 5-minute interval. See code:
+
+
+
+```r
+# Create a join
+mergedActivity <- merge(activity, activityAggr, by = "interval", all = TRUE)
+# Sort:
+mergedActivity <- mergedActivity[with(mergedActivity, order(mergedActivity$date, 
+    mergedActivity$interval)), ]
+
+# Update values
+activity$steps2 <- ifelse(is.na(mergedActivity$steps.x) == TRUE, mergedActivity$steps.y, 
+    mergedActivity$steps.x)
+```
+
+
+
+### Mean and median after having replaced NA's
+
+
+```r
+# Aggregate pr. day:
+stepsSum <- aggregate(steps2 ~ date, activity, sum)
+
+# Calculate mean and Median
+stepsSumMean <- mean(stepsSum$steps2, na.rm = T)
+stepsSumMedian <- median(stepsSum$steps2, na.rm = T)
+```
+
+
+This shows that the activities data has a **mean** of **10766.1887** and a **median** of **10766.1887**  
+  
+### Plot histogram  
+Included in this histogram are to vertical lines; yellow for the median and green for the mean. Notice however, that since these values are near identical, only one line is noticeable.
+
+```r
+hist(stepsSum$steps2, main = "Total number of steps taken each day", xlab = "Steps Per Day", 
+    breaks = 10)
+abline(v = stepsSumMean, col = "green", lwd = 1)
+abline(v = stepsSumMedian, col = "yellow", lwd = 1)
+```
+
+![plot of chunk unnamed-chunk-11](figure/unnamed-chunk-11.png) 
+
+
+### Conclusion
+I notice that both mean and median are (almost) identical as they were before. This would be expected, since the values I've inserted are exactly the mean, and it would thus not skew the data in any particular way.  
+
+As of the histogram, there came no new outliers, but instead I see an increase everywhere.
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+
+```r
+activity2 <- ddply(activity, .(interval, isWeekend), summarize, steps2 = mean(steps2, 
+    na.rm = TRUE))
+
+activity2$isWeekend2 <- ifelse(activity2$isWeekend == TRUE, "Weekend", "Weekday")
+
+library(lattice)
+xyplot(steps2 ~ interval | isWeekend2, activity2, type = "l", layout = c(1, 
+    2), ylab = "Number of Steps", xlab = "Interval", main = "Time series for weekend and weekday Activity Patters")
+```
+
+![plot of chunk unnamed-chunk-12](figure/unnamed-chunk-12.png) 
+
+
+### Conclusion
+There is a clear difference in the pattern on weekdays vs. weekdays.  
+On weekdays we see a clear spike at around 09:00 in the morning, which likely is due to commuting to work or alike. Rest of the day on weekdays, we see a much lower activity than the weekend.
